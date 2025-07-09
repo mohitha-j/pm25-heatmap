@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>City PM2.5 Heatmap Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #f8f9fa;
+        }
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            margin: 0;
+            padding: 0 0.5em;
+        }
+        h2 {
+            margin-top: 2em;
+            margin-bottom: 1em;
+            text-align: center;
+        }
+        .search-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1em;
+            width: 100%;
+            max-width: 400px;
+        }
+        .search-box input {
+            padding: 0.5em;
+            font-size: 1em;
+            width: 100%;
+            margin-bottom: 0.5em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .search-box button {
+            padding: 0.5em 1.5em;
+            font-size: 1em;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 0.5em;
+        }
+        .search-box button:hover {
+            background: #0056b3;
+        }
+        #status {
+            font-size: 0.95em;
+            color: #333;
+            min-height: 1.5em;
+        }
+        #map {
+            height: 70vh;
+            width: 100vw;
+            max-width: 900px;
+            margin-top: 1em;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        @media (max-width: 600px) {
+            #map {
+                height: 50vh;
+                max-width: 100vw;
+            }
+            h2 {
+                font-size: 1.2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h2>City PM2.5 Heatmap Demo</h2>
+    <div id="pm25value" style="margin-bottom:1em;font-size:1.1em;font-weight:bold;text-align:center;"></div>
+    <div class="search-box">
+        <input type="text" id="cityInput" placeholder="Enter a city name">
+        <button onclick="searchCity()">Show Heatmap</button>
+        <span id="status"></span>
+    </div>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    <script>
+    let map = L.map('map').setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    let heatLayer;
+
+    function searchCity() {
+        const city = document.getElementById('cityInput').value.trim();
+        document.getElementById('status').textContent = '';
+        if (!city) {
+            document.getElementById('status').textContent = 'Please enter a city name.';
+            return;
+        }
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.length === 0) {
+                    document.getElementById('status').textContent = 'City not found.';
+                    return;
+                }
+                const lat = parseFloat(data[0].lat);
+                const lon = parseFloat(data[0].lon);
+                map.setView([lat, lon], 12);
+                generateHeatmap(lat, lon);
+                document.getElementById('status').textContent = `Found: ${city} (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+            })
+            .catch(() => {
+                document.getElementById('status').textContent = 'Error fetching city location.';
+            });
+    }
+
+    function generateHeatmap(centerLat, centerLon) {
+        // Remove previous heat layer
+        if (heatLayer) map.removeLayer(heatLayer);
+        const points = [];
+        let pm25sum = 0;
+        for (let i = 0; i < 100; i++) {
+            // Random angle and distance (up to 10km)
+            const angle = Math.random() * 2 * Math.PI;
+            const dist = Math.random() * 10; // km
+            // Approximate conversion: 1 deg lat ~ 111km, 1 deg lon ~ 111km * cos(lat)
+            const dLat = (dist * Math.cos(angle)) / 111;
+            const dLon = (dist * Math.sin(angle)) / (111 * Math.cos(centerLat * Math.PI / 180));
+            const lat = centerLat + dLat;
+            const lon = centerLon + dLon;
+            const pm25 = 20 + Math.random() * 130; // 20-150
+            pm25sum += pm25;
+            // Leaflet.heat expects [lat, lon, intensity]
+            points.push([lat, lon, pm25 / 150]);
+        }
+        heatLayer = L.heatLayer(points, {radius: 25, blur: 18, minOpacity: 0.4, maxZoom: 13}).addTo(map);
+        // Show average PM2.5 value
+        const avg = pm25sum / 100;
+        document.getElementById('pm25value').textContent = `Average PM2.5: ${avg.toFixed(1)} µg/m³`;
+    }
+    </script>
+</body>
+</html>
