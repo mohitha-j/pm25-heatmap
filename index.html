@@ -92,6 +92,39 @@
     <div id="map"></div>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    <style>
+    .leaflet-control.legend {
+        background: white;
+        padding: 10px 14px 8px 14px;
+        border-radius: 6px;
+        box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+        font-size: 0.95em;
+        line-height: 1.5em;
+        color: #222;
+    }
+    .legend-title {
+        font-weight: bold;
+        margin-bottom: 4px;
+        font-size: 1em;
+    }
+    .legend-scale {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .legend-label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+    .legend-color {
+        width: 22px;
+        height: 14px;
+        border-radius: 3px;
+        display: inline-block;
+        border: 1px solid #bbb;
+    }
+    </style>
     <script>
     let map = L.map('map').setView([20, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -99,6 +132,24 @@
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
     let heatLayer;
+
+    // Add color bar legend
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function(map) {
+        const div = L.DomUtil.create('div', 'leaflet-control legend');
+        div.innerHTML = `
+            <div class="legend-title">PM2.5 (µg/m³)</div>
+            <div class="legend-scale">
+                <div class="legend-label"><span class="legend-color" style="background:#43a047"></span>0–35</div>
+                <div class="legend-label"><span class="legend-color" style="background:#fbc02d"></span>36–75</div>
+                <div class="legend-label"><span class="legend-color" style="background:#fb8c00"></span>76–115</div>
+                <div class="legend-label"><span class="legend-color" style="background:#e53935"></span>116–150</div>
+                <div class="legend-label"><span class="legend-color" style="background:#8e24aa"></span>151+</div>
+            </div>
+        `;
+        return div;
+    };
+    legend.addTo(map);
 
     function searchCity() {
         const city = document.getElementById('cityInput').value.trim();
@@ -125,6 +176,14 @@
             });
     }
 
+    function getPM25Color(val) {
+        if (val <= 35) return '#43a047'; // Green
+        if (val <= 75) return '#fbc02d'; // Yellow
+        if (val <= 115) return '#fb8c00'; // Orange
+        if (val <= 150) return '#e53935'; // Red
+        return '#8e24aa'; // Purple
+    }
+
     function generateHeatmap(centerLat, centerLon) {
         // Remove previous heat layer
         if (heatLayer) map.removeLayer(heatLayer);
@@ -145,9 +204,10 @@
             points.push([lat, lon, pm25 / 150]);
         }
         heatLayer = L.heatLayer(points, {radius: 25, blur: 18, minOpacity: 0.4, maxZoom: 13}).addTo(map);
-        // Show average PM2.5 value
+        // Show average PM2.5 value with color
         const avg = pm25sum / 100;
-        document.getElementById('pm25value').textContent = `Average PM2.5: ${avg.toFixed(1)} µg/m³`;
+        const color = getPM25Color(avg);
+        document.getElementById('pm25value').innerHTML = `<span style="color:${color}">Average PM2.5: ${avg.toFixed(1)} µg/m³</span>`;
     }
     </script>
 </body>
